@@ -1,0 +1,40 @@
+set -x
+
+
+#solve the cuda-extension compilation error!
+export TORCH_CUDA_ARCH_LIST="8.0"
+
+#solve the over-load problem
+export MKL_NUM_THREADS=1
+export NUMEXPR_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+export CUBLAS_WORKSPACE_CONFIG=:4096:8
+
+proj_path=$(pwd)
+dir_name=$(dirname "$0")
+export PYTHONPATH=$proj_path:$PYTHONPATH
+
+# configs for each dataset
+citystreet_cfg=projects/configs/citystreet/citystreet_voxel.py
+cross_view_cfg=projects/configs/cross_view/voxel/cscv_voxel.py
+
+#some parameters
+seed=42
+apply_image_mask=0
+deter=0
+amp=0
+
+#resume or not
+resume=0
+only_weight=0
+chkp_path=${chkp_path:-}
+
+CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0} python $dir_name/train.py \
+    --seed=$seed \
+    --apply_image_mask=$apply_image_mask \
+    --deter=$deter \
+    --cfg_path=$citystreet_cfg \
+    --resume=$resume \
+    --chkp_path=$chkp_path \
+    --only_weight=$only_weight \
+    --amp=$amp

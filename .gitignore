@@ -1,0 +1,9 @@
+
+data/
+workdirs/*
+.DS_Store
+.venv/
+__pycache__/
+*.py[cod]
+2407.02047v1.pdf
+.history/

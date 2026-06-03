@@ -1,0 +1,11 @@
+opencv-python-headless
+h5py
+easydict
+scipy
+einops
+addict
+yapf
+tensorboard
+tqdm
+ninja
+mmcv-lite
