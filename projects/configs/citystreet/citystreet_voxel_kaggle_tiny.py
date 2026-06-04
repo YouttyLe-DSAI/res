@@ -329,8 +329,8 @@ model = edict(
     loss_cfg=edict(
         img_density_weight=0.1,
         vox_density_weight=1.0,
-        img_mae_weight=0.0,
-        vox_mae_weight=0.0,
+        img_mae_weight=0.01,
+        vox_mae_weight=0.1,
         img_density_loss_fn=edict(
             type='MSELoss',
         ),
@@ -354,7 +354,7 @@ optimization = edict(
             weight_decay=1e-2,
         ),
         AdamW=edict(
-            lr=1e-5,
+            lr=2e-4,
             weight_decay=0.01,
         ),
         clip_norm=True,
@@ -381,7 +381,7 @@ optimization = edict(
         LinearStepScheduler = edict(
             gamma=0.1,
             warmup_lr_ratio=0.001,
-            warmup_ratio=0,
+            warmup_ratio=0.05,
             mile_stones=[0.6, 0.8, 0.9],
         ),
         CosineScheduler = edict(
