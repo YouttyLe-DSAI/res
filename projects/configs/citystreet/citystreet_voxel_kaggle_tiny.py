@@ -286,7 +286,7 @@ model = edict(
         use_lvls_embeds=False,
         transformerlayers=dict(
             type='VOXSSMCrossViewLayer',
-            d_stage=16,
+            d_state=16,
             attn_cfgs=[
                 dict(
                     type='SpatialCrossAttention',
