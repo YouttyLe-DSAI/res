@@ -4,7 +4,7 @@
     author: zhangxiong (1025679612@qq.com)
     date:   2023/07/19
 '''
-from ...backbones.temporal_ssm import TemporalAmodalSSM
+
 from ..register            import COUNTERS
 from ...backbones          import BACKBONES
 from ...view_transforms    import VOXEL_POOLING
@@ -25,19 +25,10 @@ from easydict import EasyDict as edict
 class VOXCounter(nn.Module):
     def __init__(self, cfg, *args, **kwargs,):
         super(VOXCounter, self).__init__()
-        self.cfg = copy.deepcopy(cfg)
+        self.cfg =  copy.deepcopy(cfg)
         self.build_sub_modules(self.cfg)
         self.build_counter_head(self.cfg.vox_counter_head)
         self.build_loss_fn()
-
-        # ===== [ADD-2] BUILD TEMPORAL SSM =====
-        # image_feature_fusion của config CityStreet xuất ra 4 level,
-        # mỗi level có out_channels = 128
-        # TA-SSM sẽ xử lý list feature maps này trước khi đi vào camera embedding / voxel pooling
-        self.temporal_ssm = TemporalAmodalSSM(
-            d_model=self.cfg.image_feature_fusion.out_channels,
-            num_levels=self.cfg.image_feature_fusion.num_outs
-        )
 
     def build_sub_modules(self, cfg):
         self.image_feature_backbone = BACKBONES.build(cfg.image_feature_backbone)
@@ -147,18 +138,10 @@ class VOXCounter(nn.Module):
             x = input_dict.input_data.image_set
             b, n, _, _, _ = x.shape
             x = rearrange(x, 'b n ... -> (b n) ...')
-
-            # ===== ORIGINAL BACKBONE =====
             x = self.image_feature_backbone(x)
             x = self.image_feature_fusion(x)
-
-            # ===== [ADD-3] TEMPORAL AMODAL SSM =====
-            # Chèn temporal memory ngay sau image feature fusion.
-            # x ở đây là list multi-level features: [P2, P3, P4, P5]
-            # mỗi phần tử có shape [(b*n), c, h, w]
-            x = self.temporal_ssm(x)
             
-            # apply camera-embedding to image-features
+            #apply camera-embedding to image-features
             if self.image_feature_embed is not None:
                 x = self.image_feature_embed(mlvl_feats=x, R=input_dict)
 
@@ -166,7 +149,7 @@ class VOXCounter(nn.Module):
             image_density_map = rearrange(image_density_map, '(b n)... -> b n ...', b=b, n=n)
             mlvl_feats = [rearrange(feat, '(b n)... -> b n ...', b=b, n=n) for feat in x]
 
-            # we may apply mask to maskout some spatial feature in image space
+            #we may apply mask to maskout some spatial feature in image space
             if self.cfg.get('apply_mask', False):
                 org_mask   = input_dict.input_data.image_masks
                 mlvl_feats = [feat * F.interpolate(org_mask, feat.shape[3:], mode='bilinear')[:,:,None]/255.0 for feat in mlvl_feats]
@@ -174,8 +157,9 @@ class VOXCounter(nn.Module):
             mlvl_vox_feats = self.feature_pooling(mlvl_feats=mlvl_feats, input_dict=input_dict)
             mlvl_vox_feats = self.vox_feature_fusion(mlvl_vox_feats)
             mlvl_vox_density_map = [counter(vox_feats) for (counter, vox_feats) in zip(self.counter, mlvl_vox_feats)]
-    
+
             return edict(
                 image_density_map=image_density_map,
                 vox_density_map=mlvl_vox_density_map,
             )
+        
