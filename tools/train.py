@@ -1,9 +1,9 @@
-
 '''
     file:   train.py
     author: zhangxiong (1025679612@qq.com)
     date:   2023/07/20
 '''
+
 
 def debug_mode():
     import os
@@ -12,6 +12,7 @@ def debug_mode():
     sys.path.append(os.path.join(cur_dir, '..'))
     os.environ['CUDA_VISIBLE_DEVICES']='0'
     print('finished setting debug mode')
+
 
 def parse_args():
     import argparse
@@ -29,10 +30,12 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
 def limit_cv_thread():
     import cv2
     cv2.setNumThreads(0)
     cv2.ocl.setUseOpenCL(False)
+
 
 def seed_random(seed=42,deter=True):
     import random
@@ -53,6 +56,7 @@ def seed_random(seed=42,deter=True):
     torch.backends.cudnn.enabled = True
     torch.use_deterministic_algorithms(deter>=1)
 
+
 '''
     pay attention
 '''
@@ -62,6 +66,7 @@ limit_cv_thread()
 seed_random(args.seed, args.deter)
 #===========================================================================
 
+
 import os
 from os import path as osp
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
@@ -69,6 +74,7 @@ import torch
 from projects import MODELS, DATASET, HELPERS, OPTIMIZATION
 import torch.nn as nn
 import torch.distributed as dist
+
 
 class Trainer(object):
     def __init__(self, args, rank=0, world_size=1, amp=False):
@@ -222,6 +228,15 @@ class Trainer(object):
 
         for (step, input_dict) in enumerate(tqdm.tqdm(DATASET.get('DataPrefetcher')(self.dataset.val.loader).pool(), total=len(self.dataset.val.loader)) if self.rank==0 else DATASET.get('DataPrefetcher')(self.dataset.val.loader).pool()):
             input_dict = edict(input_dict)
+
+            # ===== [ADD-T2] RESET TEMPORAL MEMORY IN EVAL =====
+            # Eval cũng cần reset hidden state theo từng sample,
+            # tránh memory từ sample trước làm sai metric sample sau.
+            if hasattr(self.model, 'module') and hasattr(self.model.module, 'temporal_ssm'):
+                self.model.module.temporal_ssm.reset_hidden()
+            elif hasattr(self.model, 'temporal_ssm'):
+                self.model.temporal_ssm.reset_hidden()
+
             p = self.model(input_dict)
 
             #get mask
@@ -299,6 +314,15 @@ class Trainer(object):
         for input_dict in tqdm.tqdm(DATASET.get('DataPrefetcher')(self.dataset.train.loader).pool(), desc=f"epoch{epoch}", total=len(self.dataset.train.loader)) if self.rank==0 else DATASET.get('DataPrefetcher')(self.dataset.train.loader).pool():
             self.glb_step += 1
             input_dict = edict(input_dict)
+
+            # ===== [ADD-T1] RESET TEMPORAL MEMORY EACH BATCH =====
+            # Train hiện tại dùng các sample độc lập, không phải chuỗi video liên tục.
+            # Vì vậy phải reset hidden state trước mỗi batch để tránh leak thông tin.
+            if hasattr(self.model, 'module') and hasattr(self.model.module, 'temporal_ssm'):
+                self.model.module.temporal_ssm.reset_hidden()
+            elif hasattr(self.model, 'temporal_ssm'):
+                self.model.temporal_ssm.reset_hidden()
+
             optimizer.zero_grad()
             with torch.amp.autocast('cuda', enabled=self.amp and torch.cuda.is_available()):
                 p = self.model(input_dict)
@@ -421,6 +445,7 @@ def worker(rank, world_size, args, **kargs):
     trainer = Trainer(args=args, rank=rank, world_size=world_size, amp=True if args.amp > 0 else False)
     trainer.do_train()
 
+
 def main():
     world_size = torch.cuda.device_count()
     if world_size <= 1:
@@ -428,6 +453,7 @@ def main():
     else:
         import torch.multiprocessing as mp
         mp.spawn(worker, nprocs=world_size, args=(world_size,args,))
+
 
 if __name__ == '__main__':
     main()
