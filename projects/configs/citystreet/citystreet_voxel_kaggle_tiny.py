@@ -3,7 +3,8 @@ import math
 import os
 from os import path as osp
 
-exp_name = 'citystreet/vox/kaggle_scale06_layers1223'
+# exp_name = 'citystreet/vox/kaggle_scale06_layers1223'
+exp_name = 'citystreet/vox/kaggle_c2ssm_scale06_layers1223'
 
 #config of the image backbone
 image_bkb_indices      = [0,1,2,3]
