@@ -6,3 +6,4 @@
 '''
 
 from .vox_cross_view import *
+from .c2ssm import VOXSSMCrossViewLayer
