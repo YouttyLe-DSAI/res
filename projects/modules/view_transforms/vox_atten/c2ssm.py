@@ -158,6 +158,7 @@ class VOXSSMCrossViewLayer(nn.Module):
         super().__init__()
         self.embed_dims = embed_dims
         self.num_cams   = num_cams
+        self.pre_norm    = False
 
         self.c2ssm    = C2SSMBlock(embed_dims, d_state=d_state, dropout=ffn_dropout)
         self.cam_proj = nn.Linear(embed_dims, embed_dims, bias=False)
