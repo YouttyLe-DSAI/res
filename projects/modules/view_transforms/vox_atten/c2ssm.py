@@ -44,28 +44,33 @@ class SelectiveSSM(nn.Module):
         nn.init.constant_(self.dt_proj.bias, -4.0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        orig_dtype = x.dtype
+        x = x.float()                    # FP32 toàn bộ SSM scan
+
         B, L, D = x.shape
         N = self.d_state
 
-        x_dbl         = self.x_proj(x)
-        dt, B_s, C_s  = x_dbl.split([self.dt_rank, N, N], dim=-1)
-        dt             = F.softplus(self.dt_proj(dt))              # (B,L,D)
+        x_dbl        = self.x_proj(x)
+        dt, B_s, C_s = x_dbl.split([self.dt_rank, N, N], dim=-1)
+        dt           = F.softplus(self.dt_proj(dt))              # (B,L,D)
+        dt           = torch.clamp(dt, max=10.0)                 # ← THÊM: chặn dt không quá lớn
 
-        A  = -torch.exp(self.A_log.float())                        # (D,N)
-        dA = torch.exp(dt.unsqueeze(-1) * A[None, None])           # (B,L,D,N)
-        dB = dt.unsqueeze(-1) * B_s.unsqueeze(2)                   # (B,L,D,N)
+        A  = -torch.exp(self.A_log.float())                      # (D,N)
+        dA = torch.exp(dt.unsqueeze(-1) * A[None, None])         # (B,L,D,N)
+        dA = torch.clamp(dA, max=1.0)                            # ← THÊM: dA là decay, không được > 1
+        dB = dt.unsqueeze(-1) * B_s.unsqueeze(2)                 # (B,L,D,N)
 
-        h  = torch.zeros(B, D, N, device=x.device, dtype=x.dtype)
+        h  = torch.zeros(B, D, N, device=x.device, dtype=torch.float32)
         ys = []
         for i in range(L):
             h   = dA[:, i] * h + dB[:, i] * x[:, i].unsqueeze(-1)
-            y_i = (h * C_s[:, i].unsqueeze(1)).sum(-1)             # (B,D)
+            y_i = (h * C_s[:, i].unsqueeze(1)).sum(-1)           # (B,D)
             ys.append(y_i)
 
-        y = torch.stack(ys, dim=1)                                  # (B,L,D)
+        y = torch.stack(ys, dim=1)                               # (B,L,D)
         y = y + x * self.D[None, None]
-        return self.out_proj(y)
-
+        y = self.out_proj(y)
+        return y.to(orig_dtype)                                  # ← cast về dtype gốc
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 2.  C2-SSM Block
@@ -95,6 +100,7 @@ class C2SSMBlock(nn.Module):
         seq = self.norm_in(seq)
 
         out     = self.ssm(seq)
+        out     = torch.clamp(out, -1e4, 1e4)   # ← THÊM DÒNG NÀY
         out     = self.drop(out)
         summary = out[:, -1, :].reshape(B, Q, D)
 
