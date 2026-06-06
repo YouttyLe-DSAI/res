@@ -64,6 +64,7 @@ seed_random(args.seed, args.deter)
 
 import os
 from os import path as osp
+import shutil
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')
 import torch
 from projects import MODELS, DATASET, HELPERS, OPTIMIZATION
@@ -137,6 +138,10 @@ class Trainer(object):
         self.cfg.optimization.optimizer.world_size    = self.world_size
         self.cfg.optimization.optimizer.batch_size    = self.cfg.data.train.batch_size
         self.cfg.model.amp                            = self.cfg.optimization.get('amp', self.amp)
+
+        if self.cfg.optimization.logger_cfg.get('chkp_sv_period', 0) == 0:
+            self.cfg.optimization.logger_cfg.chkp_sv_period = \
+                self.cfg.optimization.logger_cfg.get('eval_period', 5)
 
     def __init_multi_gpu__(self):
         self.is_master_node=True if self.rank==0 else False
@@ -305,6 +310,7 @@ class Trainer(object):
                 loss_dict = self.model.module.loss_fn(p=p, input_dict=input_dict)
 
             self.scaler.scale(loss_dict.total_loss).backward()
+            self.scaler.unscale_(optimizer)          # ← THÊM: unscale trước khi clip
             clip_grad_norm(loss_dict=loss_dict)
             get_max_norm(loss_dict=loss_dict)
             self.scaler.step(optimizer)
@@ -376,6 +382,12 @@ class Trainer(object):
 
             if self.is_master_node and should_save:
                 self.dump_chkp(chkp_path)
+                kaggle_ckpt_dir = '/kaggle/working/checkpoints'
+                os.makedirs(kaggle_ckpt_dir, exist_ok=True)
+                kaggle_path = osp.join(kaggle_ckpt_dir, f'epoch_{epoch+1}.pth')
+                import shutil
+                shutil.copy2(chkp_path, kaggle_path)
+                print(f'[BACKUP] saved to {kaggle_path}', flush=True)
 
             if not should_eval:
                 continue
