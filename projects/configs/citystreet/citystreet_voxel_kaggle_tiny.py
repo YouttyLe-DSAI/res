@@ -356,7 +356,7 @@ optimization = edict(
             weight_decay=1e-2,
         ),
         AdamW=edict(
-            lr=2e-4,
+            lr=2e-5,
             weight_decay=0.01,
         ),
         clip_norm=True,
