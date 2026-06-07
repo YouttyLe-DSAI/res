@@ -24,6 +24,7 @@ def visualize_bev_counting_samples(logger, batch, p, step, prefix, n_max_sample=
         a_min = 0.0 if a_min is None else a_min
         density_map = np.clip(density_map, a_min, a_max)
         density_map = density_map / (a_max+1e-6)
+        density_map = np.nan_to_num(density_map, nan=0.0, posinf=1.0, neginf=0.0)
         density_map = (density_map*255.0).astype(np.uint8)
         density_map = cv2.applyColorMap(density_map, colormap)
         return density_map
@@ -86,6 +87,7 @@ def visualize_vox_counting_samples(logger, batch, p, step, prefix, n_max_sample=
         a_min = 0.0 if a_min is None else a_min
         density_map = np.clip(density_map, a_min, a_max)
         density_map = density_map / (a_max+1e-6)
+        density_map = np.nan_to_num(density_map, nan=0.0, posinf=1.0, neginf=0.0)
         density_map = (density_map*255.0).astype(np.uint8)
         density_map = cv2.applyColorMap(density_map, colormap)
         return density_map
